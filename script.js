@@ -1,6 +1,7 @@
 const budgetInput = document.getElementById("budgetFile");
 const versionSelect = document.getElementById("version");
 const loadButton = document.getElementById("loadBudget");
+const saveButton = document.getElementById("saveProgress");
 const generateButton = document.getElementById("generateReport");
 const expensesTableBody = document.querySelector("#expensesTable tbody");
 
@@ -15,6 +16,11 @@ const MONEY_FORMAT = new Intl.NumberFormat("en-US", {
 function showMessage(text, tone = "info") {
   generateButton.textContent = tone === "loading" ? text : "Generate report PDF";
   generateButton.disabled = tone === "loading";
+}
+
+function updateActionAvailability(hasExpenses) {
+  generateButton.disabled = !hasExpenses;
+  saveButton.disabled = !hasExpenses;
 }
 
 function parseAmount(raw) {
@@ -117,17 +123,17 @@ function clearTable() {
   `;
   expenses = [];
   attachments = [];
-  generateButton.disabled = true;
+  updateActionAvailability(false);
 }
 
-function renderTable(data) {
+function renderTable(data, existingAttachments = []) {
   if (!data.length) {
     clearTable();
     return;
   }
 
   expensesTableBody.innerHTML = "";
-  attachments = data.map(() => ({ invoice: null, proof: null }));
+  attachments = data.map((_, index) => existingAttachments[index] || { invoice: null, proof: null });
 
   data.forEach((exp, index) => {
     const row = document.createElement("tr");
@@ -167,10 +173,17 @@ function renderTable(data) {
       label.textContent = file ? file.name : "No file";
     });
 
+    const invoiceLabel = row.querySelector('[data-role="invoice-name"]');
+    const proofLabel = row.querySelector('[data-role="proof-name"]');
+    const currentInvoice = attachments[index].invoice;
+    const currentProof = attachments[index].proof;
+    invoiceLabel.textContent = currentInvoice ? currentInvoice.name : "No file";
+    proofLabel.textContent = currentProof ? currentProof.name : "No file";
+
     expensesTableBody.appendChild(row);
   });
 
-  generateButton.disabled = false;
+  updateActionAvailability(true);
 }
 
 async function readFileAsArrayBuffer(file) {
@@ -253,74 +266,193 @@ async function addDetailPage(doc, index, exp) {
   drawLine("Sheet", exp.sheet, PDFLib.rgb(0.2, 0.2, 0.2), 5);
 }
 
+async function createReportDocument() {
+  const doc = await PDFLib.PDFDocument.create();
+
+  for (let i = 0; i < expenses.length; i++) {
+    const exp = expenses[i];
+    await addDetailPage(doc, i + 1, exp);
+
+    const invoice = attachments[i]?.invoice;
+    if (invoice) {
+      if (invoice.type === "application/pdf") {
+        await appendPdfAttachment(doc, invoice);
+      } else {
+        await appendImageAttachment(doc, invoice, `Invoice for expense ${i + 1}`);
+      }
+    } else {
+      addBlankPage(doc, `Expense ${i + 1}: no invoice uploaded.`);
+    }
+
+    const proof = attachments[i]?.proof;
+    if (proof) {
+      if (proof.type === "application/pdf") {
+        await appendPdfAttachment(doc, proof);
+      } else {
+        await appendImageAttachment(doc, proof, `Proof of payment for expense ${i + 1}`);
+      }
+    } else {
+      addBlankPage(doc, `Expense ${i + 1}: no proof uploaded.`);
+    }
+  }
+
+  return doc;
+}
+
+async function downloadPdf(doc, filename) {
+  const pdfBytes = await doc.save();
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+async function serializeAttachment(file) {
+  if (!file) return null;
+  const buffer = await readFileAsArrayBuffer(file);
+  return {
+    name: file.name,
+    type: file.type || "application/octet-stream",
+    data: arrayBufferToBase64(buffer),
+  };
+}
+
+function base64ToFile(b64, name, type) {
+  if (!b64) return null;
+  const binary = atob(b64);
+  const length = binary.length;
+  const bytes = new Uint8Array(length);
+  for (let i = 0; i < length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  const blob = new Blob([bytes], { type: type || "application/octet-stream" });
+  try {
+    return new File([blob], name, { type: blob.type });
+  } catch (err) {
+    // Older browsers may not support File constructor
+    blob.name = name;
+    return blob;
+  }
+}
+
+async function buildSaveMetadata() {
+  const serializedAttachments = [];
+  for (const pair of attachments) {
+    serializedAttachments.push({
+      invoice: await serializeAttachment(pair.invoice),
+      proof: await serializeAttachment(pair.proof),
+    });
+  }
+
+  return {
+    kind: "BudgetToolSave",
+    schemaVersion: 1,
+    templateVersion: Number(versionSelect.value),
+    budgetFileName: budgetInput.files?.[0]?.name || "",
+    expenses,
+    attachments: serializedAttachments,
+  };
+}
+
 async function generateReport() {
   if (!expenses.length) return;
 
   try {
     showMessage("Generating...", "loading");
-    const doc = await PDFLib.PDFDocument.create();
-
-    for (let i = 0; i < expenses.length; i++) {
-      const exp = expenses[i];
-      await addDetailPage(doc, i + 1, exp);
-
-      const invoice = attachments[i]?.invoice;
-      if (invoice) {
-        if (invoice.type === "application/pdf") {
-          await appendPdfAttachment(doc, invoice);
-        } else {
-          await appendImageAttachment(doc, invoice, `Invoice for expense ${i + 1}`);
-        }
-      } else {
-        addBlankPage(doc, `Expense ${i + 1}: no invoice uploaded.`);
-      }
-
-      const proof = attachments[i]?.proof;
-      if (proof) {
-        if (proof.type === "application/pdf") {
-          await appendPdfAttachment(doc, proof);
-        } else {
-          await appendImageAttachment(doc, proof, `Proof of payment for expense ${i + 1}`);
-        }
-      } else {
-        addBlankPage(doc, `Expense ${i + 1}: no proof uploaded.`);
-      }
-    }
-
-    const pdfBytes = await doc.save();
-    const blob = new Blob([pdfBytes], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "expense-report.pdf";
-    link.click();
-    URL.revokeObjectURL(url);
+    const doc = await createReportDocument();
+    await downloadPdf(doc, "expense-report.pdf");
   } catch (err) {
     alert(`Something went wrong while creating the report: ${err.message}`);
     console.error(err);
   } finally {
     showMessage("Generate report PDF", "idle");
-    generateButton.disabled = !expenses.length;
+    updateActionAvailability(!!expenses.length);
   }
+}
+
+async function saveProgress() {
+  if (!expenses.length) return;
+  saveButton.textContent = "Saving...";
+  saveButton.disabled = true;
+
+  try {
+    const doc = await createReportDocument();
+    const metadata = await buildSaveMetadata();
+    doc.setSubject(JSON.stringify(metadata));
+    doc.setTitle("Budget Tool progress save");
+    await downloadPdf(doc, "budget-progress.pdf");
+  } catch (err) {
+    alert(`Unable to save your progress: ${err.message}`);
+    console.error(err);
+  } finally {
+    saveButton.textContent = "Save progress PDF";
+    updateActionAvailability(!!expenses.length);
+  }
+}
+
+async function loadSavedProgress(file) {
+  const buffer = await readFileAsArrayBuffer(file);
+  const doc = await PDFLib.PDFDocument.load(buffer);
+  const subject = doc.getSubject();
+
+  if (!subject) {
+    throw new Error("This PDF does not contain Budget Tool save data.");
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(subject);
+  } catch (err) {
+    throw new Error("Unable to read save metadata from PDF.");
+  }
+
+  if (payload.kind !== "BudgetToolSave") {
+    throw new Error("The selected PDF is not a Budget Tool progress file.");
+  }
+
+  const restoredAttachments = (payload.attachments || []).map((pair) => ({
+    invoice: pair?.invoice ? base64ToFile(pair.invoice.data, pair.invoice.name, pair.invoice.type) : null,
+    proof: pair?.proof ? base64ToFile(pair.proof.data, pair.proof.name, pair.proof.type) : null,
+  }));
+
+  versionSelect.value = String(payload.templateVersion || 1);
+  expenses = payload.expenses || [];
+  renderTable(expenses, restoredAttachments);
 }
 
 loadButton.addEventListener("click", async () => {
   const file = budgetInput.files?.[0];
   if (!file) {
-    alert("Please choose a budget spreadsheet first.");
+    alert("Please choose a budget spreadsheet or saved progress PDF first.");
     return;
   }
 
   try {
     loadButton.disabled = true;
     loadButton.textContent = "Loading...";
-    const version = Number(versionSelect.value);
-    const data = await loadBudgetFromFile(file, version);
-    expenses = data;
-    renderTable(data);
+    if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+      await loadSavedProgress(file);
+    } else {
+      const version = Number(versionSelect.value);
+      const data = await loadBudgetFromFile(file, version);
+      expenses = data;
+      renderTable(data);
+    }
   } catch (err) {
-    alert(`Unable to read the spreadsheet: ${err.message}`);
+    alert(`Unable to read the file: ${err.message}`);
     console.error(err);
     clearTable();
   } finally {
@@ -339,3 +471,4 @@ budgetInput.addEventListener("change", () => {
 });
 
 generateButton.addEventListener("click", generateReport);
+saveButton.addEventListener("click", saveProgress);

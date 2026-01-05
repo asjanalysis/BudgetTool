@@ -29,14 +29,15 @@
       <div class="input-row">
         <div>
           <label for="budgetFile" class="button">Upload budget spreadsheet</label>
-          <input id="budgetFile" type="file" accept=".xlsx,.xls,.xlsm" />
+          <input id="budgetFile" type="file" accept=".xlsx,.xls,.xlsm,application/pdf" />
         </div>
         <div class="actions">
           <button id="loadBudget" class="primary">Load expenses</button>
+          <button id="saveProgress" class="primary" disabled>Save progress PDF</button>
           <button id="generateReport" class="primary" disabled>Generate report PDF</button>
         </div>
       </div>
-      <p class="hint">Files are read only in your browser—nothing is uploaded or saved on our servers.</p>
+      <p class="hint">Files are read only in your browser—nothing is uploaded or saved on our servers. You can also re-open a saved progress PDF to pick up where you left off.</p>
     </section>
 
     <section class="card">
