@@ -5,6 +5,8 @@ const saveButton = document.getElementById("saveProgress");
 const generateButton = document.getElementById("generateReport");
 const expensesTableBody = document.querySelector("#expensesTable tbody");
 
+const SAVE_ATTACHMENT_NAME = "budget-tool-save.json";
+
 let expenses = [];
 let attachments = [];
 
@@ -368,6 +370,19 @@ async function buildSaveMetadata() {
   };
 }
 
+async function attachSaveData(doc, metadata) {
+  const encoder = new TextEncoder();
+  const payload = encoder.encode(JSON.stringify(metadata));
+
+  // Keep the subject small to avoid metadata parsing issues on reload
+  doc.setSubject("Budget Tool progress save");
+  doc.setTitle("Budget Tool progress save");
+  doc.attach(payload, SAVE_ATTACHMENT_NAME, {
+    mimeType: "application/json",
+    description: "Budget Tool save data",
+  });
+}
+
 async function generateReport() {
   if (!expenses.length) return;
 
@@ -392,8 +407,7 @@ async function saveProgress() {
   try {
     const doc = await createReportDocument();
     const metadata = await buildSaveMetadata();
-    doc.setSubject(JSON.stringify(metadata));
-    doc.setTitle("Budget Tool progress save");
+    await attachSaveData(doc, metadata);
     await downloadPdf(doc, "budget-progress.pdf");
   } catch (err) {
     alert(`Unable to save your progress: ${err.message}`);
@@ -407,15 +421,24 @@ async function saveProgress() {
 async function loadSavedProgress(file) {
   const buffer = await readFileAsArrayBuffer(file);
   const doc = await PDFLib.PDFDocument.load(buffer);
+
+  const attachments = doc.getAttachments();
+  const saveAttachment = attachments?.find((att) => att.name === SAVE_ATTACHMENT_NAME);
   const subject = doc.getSubject();
 
-  if (!subject) {
+  if (!saveAttachment && !subject) {
     throw new Error("This PDF does not contain Budget Tool save data.");
   }
 
   let payload;
   try {
-    payload = JSON.parse(subject);
+    if (saveAttachment) {
+      const decoder = new TextDecoder();
+      const json = decoder.decode(saveAttachment.content || saveAttachment.data || saveAttachment.bytes);
+      payload = JSON.parse(json);
+    } else {
+      payload = JSON.parse(subject);
+    }
   } catch (err) {
     throw new Error("Unable to read save metadata from PDF.");
   }
