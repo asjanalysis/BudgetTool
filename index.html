@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Budget Tool - Expense Report Helper</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js" defer></script>
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <h1>Budget Tool</h1>
+      <p>Upload a budget spreadsheet, attach invoices and proofs, and generate a combined PDF report.</p>
+    </div>
+    <div class="version-picker">
+      <label for="version">Template version</label>
+      <select id="version">
+        <option value="1">Version 1 (Expenses)</option>
+        <option value="2">Version 2 (Personnel &amp; Non-Personnel)</option>
+      </select>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="input-row">
+        <div>
+          <label for="budgetFile" class="button">Upload budget spreadsheet</label>
+          <input id="budgetFile" type="file" accept=".xlsx,.xls,.xlsm" />
+        </div>
+        <div class="actions">
+          <button id="loadBudget" class="primary">Load expenses</button>
+          <button id="generateReport" class="primary" disabled>Generate report PDF</button>
+        </div>
+      </div>
+      <p class="hint">Files are read only in your browser—nothing is uploaded or saved on our servers.</p>
+    </section>
+
+    <section class="card">
+      <div class="table-wrapper">
+        <table id="expensesTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Name</th>
+              <th>Amount</th>
+              <th>Sheet</th>
+              <th>Invoice</th>
+              <th>Proof of payment</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="empty">
+              <td colspan="6">Load a budget spreadsheet to see expenses.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <small>No data is stored or transmitted—everything happens locally in your browser.</small>
+  </footer>
+</body>
+</html>
