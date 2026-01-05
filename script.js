@@ -374,8 +374,19 @@ async function attachSaveData(doc, metadata) {
   const encoder = new TextEncoder();
   const payload = encoder.encode(JSON.stringify(metadata));
 
-  // Keep the subject small to avoid metadata parsing issues on reload
-  doc.setSubject("Budget Tool progress save");
+  // Store a lightweight copy of the save data in the PDF metadata as a fallback
+  // for environments that cannot read attachments. Attachments still carry the
+  // full save payload (including encoded files) to restore uploads when
+  // reloading progress.
+  const lightMetadata = {
+    kind: metadata.kind,
+    schemaVersion: metadata.schemaVersion,
+    templateVersion: metadata.templateVersion,
+    budgetFileName: metadata.budgetFileName,
+    expenses: metadata.expenses,
+  };
+
+  doc.setSubject(JSON.stringify(lightMetadata));
   doc.setTitle("Budget Tool progress save");
   doc.attach(payload, SAVE_ATTACHMENT_NAME, {
     mimeType: "application/json",
@@ -422,7 +433,7 @@ async function loadSavedProgress(file) {
   const buffer = await readFileAsArrayBuffer(file);
   const doc = await PDFLib.PDFDocument.load(buffer);
 
-  const attachments = doc.getAttachments();
+  const attachments = typeof doc.getAttachments === "function" ? doc.getAttachments() : [];
   const saveAttachment = attachments?.find((att) => att.name === SAVE_ATTACHMENT_NAME);
   const subject = doc.getSubject();
 
