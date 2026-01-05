@@ -18,8 +18,10 @@ function showMessage(text, tone = "info") {
 }
 
 function parseAmount(raw) {
-  if (!raw) return 0;
-  let clean = raw.replace(/,/g, "").replace(/\$/g, "").trim();
+  if (raw === null || raw === undefined || raw === "") return 0;
+  const valueStr = typeof raw === "string" ? raw : String(raw);
+
+  let clean = valueStr.replace(/,/g, "").replace(/\$/g, "").trim();
   if (clean.startsWith("(") && clean.endsWith(")")) {
     clean = "-" + clean.slice(1, -1);
   }
