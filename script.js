@@ -48,6 +48,45 @@ function addRows(sheet, nameCols, amtCol, rows) {
   return list;
 }
 
+function parseExpenseName(name) {
+  const fallback = {
+    category: "(category)",
+    subCategory: "(sub-category)",
+    phase: "(phase)",
+    details: "(details)",
+    original: name || "(unnamed)",
+  };
+
+  if (!name) return fallback;
+
+  const parts = String(name)
+    .split(" - ")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const [category, subCategory, phase, ...rest] = parts;
+  return {
+    category: category || fallback.category,
+    subCategory: subCategory || fallback.subCategory,
+    phase: phase || fallback.phase,
+    details: rest.length ? rest.join(" - ") : fallback.details,
+    original: name,
+  };
+}
+
+function renderExpenseName(name) {
+  const parsed = parseExpenseName(name);
+  return `
+    <div class="expense-name">
+      <span class="pill category">${parsed.category}</span>
+      <span class="pill sub-category">${parsed.subCategory}</span>
+      <span class="pill phase">Phase ${parsed.phase}</span>
+      <span class="pill details">${parsed.details}</span>
+    </div>
+    <div class="expense-name-raw">${parsed.original}</div>
+  `;
+}
+
 async function loadBudgetFromFile(file, version) {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: "array" });
@@ -99,7 +138,7 @@ function renderTable(data) {
 
     row.innerHTML = `
       <td>${id}</td>
-      <td>${exp.name || "(unnamed)"}</td>
+      <td>${renderExpenseName(exp.name)}</td>
       <td>${MONEY_FORMAT.format(exp.amount)}</td>
       <td><span class="badge invoice">${exp.sheet}</span></td>
       <td>
@@ -196,12 +235,22 @@ function addBlankPage(doc, message) {
 async function addDetailPage(doc, index, exp) {
   const page = doc.addPage([595.28, 841.89]);
   page.drawText(`Expense ${index}`, { x: 40, y: 780, size: 18, color: PDFLib.rgb(0.14, 0.52, 0.92) });
-  page.drawText("Name", { x: 40, y: 740, size: 12, color: PDFLib.rgb(0, 0, 0) });
-  page.drawText(exp.name || "(unnamed)", { x: 40, y: 720, size: 12, color: PDFLib.rgb(0, 0, 0) });
-  page.drawText("Amount", { x: 40, y: 690, size: 12, color: PDFLib.rgb(0, 0.32, 0.71) });
-  page.drawText(MONEY_FORMAT.format(exp.amount), { x: 40, y: 670, size: 12, color: PDFLib.rgb(0, 0.32, 0.71) });
-  page.drawText("Sheet", { x: 40, y: 640, size: 12, color: PDFLib.rgb(0.2, 0.2, 0.2) });
-  page.drawText(exp.sheet, { x: 40, y: 620, size: 12, color: PDFLib.rgb(0.2, 0.2, 0.2) });
+  const parsedName = parseExpenseName(exp.name);
+  const yStart = 740;
+  const lineGap = 26;
+
+  const drawLine = (label, value, color, indexOffset = 0) => {
+    const y = yStart - lineGap * indexOffset;
+    page.drawText(label, { x: 40, y, size: 12, color: PDFLib.rgb(0.8, 0.86, 0.95) });
+    page.drawText(value, { x: 140, y, size: 12, color });
+  };
+
+  drawLine("Category", parsedName.category, PDFLib.rgb(0.23, 0.51, 0.96), 0);
+  drawLine("Sub-category", parsedName.subCategory, PDFLib.rgb(0.92, 0.28, 0.6), 1);
+  drawLine("Phase", `Phase ${parsedName.phase}`, PDFLib.rgb(0.98, 0.45, 0.09), 2);
+  drawLine("Details", parsedName.details, PDFLib.rgb(0.13, 0.77, 0.36), 3);
+  drawLine("Amount", MONEY_FORMAT.format(exp.amount), PDFLib.rgb(0, 0.32, 0.71), 4);
+  drawLine("Sheet", exp.sheet, PDFLib.rgb(0.2, 0.2, 0.2), 5);
 }
 
 async function generateReport() {
