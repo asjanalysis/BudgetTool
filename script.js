@@ -198,14 +198,53 @@ async function readFileAsArrayBuffer(file) {
   });
 }
 
-async function appendPdfAttachment(doc, file) {
+let pdfLibPromise;
+
+async function ensurePdfLib() {
+  if (window.PDFLib) return window.PDFLib;
+
+  if (!pdfLibPromise) {
+    pdfLibPromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector("script[data-role='pdf-lib']");
+      const script = existing || document.createElement("script");
+
+      if (!existing) {
+        script.src = "https://cdn.jsdelivr.net/npm/pdf-lib@1.18.0/dist/pdf-lib.min.js";
+        script.defer = true;
+        script.dataset.role = "pdf-lib";
+        document.head.appendChild(script);
+      }
+
+      const finish = () =>
+        window.PDFLib
+          ? resolve(window.PDFLib)
+          : reject(new Error("PDF library failed to initialize."));
+
+      if (window.PDFLib) {
+        finish();
+        return;
+      }
+
+      script.addEventListener("load", finish, { once: true });
+      script.addEventListener(
+        "error",
+        () => reject(new Error("Unable to load PDF library. Please check your connection and try again.")),
+        { once: true }
+      );
+    });
+  }
+
+  return pdfLibPromise;
+}
+
+async function appendPdfAttachment(pdfLib, doc, file) {
   const bytes = await readFileAsArrayBuffer(file);
-  const attachmentPdf = await PDFLib.PDFDocument.load(bytes);
+  const attachmentPdf = await pdfLib.PDFDocument.load(bytes);
   const pages = await doc.copyPages(attachmentPdf, attachmentPdf.getPageIndices());
   pages.forEach((p) => doc.addPage(p));
 }
 
-async function appendImageAttachment(doc, file, label) {
+async function appendImageAttachment(pdfLib, doc, file, label) {
   const bytes = await readFileAsArrayBuffer(file);
   const page = doc.addPage([595.28, 841.89]); // A4
   const mime = file.type;
@@ -227,7 +266,7 @@ async function appendImageAttachment(doc, file, label) {
     x: 40,
     y: 780,
     size: 14,
-    color: PDFLib.rgb(1, 1, 1),
+    color: pdfLib.rgb(1, 1, 1),
   });
 
   page.drawImage(image, {
@@ -238,64 +277,65 @@ async function appendImageAttachment(doc, file, label) {
   });
 }
 
-function addBlankPage(doc, message) {
+function addBlankPage(pdfLib, doc, message) {
   const page = doc.addPage([595.28, 841.89]);
   page.drawText(message, {
     x: 50,
     y: 760,
     size: 14,
-    color: PDFLib.rgb(1, 1, 1),
+    color: pdfLib.rgb(1, 1, 1),
   });
 }
 
-async function addDetailPage(doc, index, exp) {
+async function addDetailPage(pdfLib, doc, index, exp) {
   const page = doc.addPage([595.28, 841.89]);
-  page.drawText(`Expense ${index}`, { x: 40, y: 780, size: 18, color: PDFLib.rgb(0.14, 0.52, 0.92) });
+  page.drawText(`Expense ${index}`, { x: 40, y: 780, size: 18, color: pdfLib.rgb(0.14, 0.52, 0.92) });
   const parsedName = parseExpenseName(exp.name);
   const yStart = 740;
   const lineGap = 26;
 
   const drawLine = (label, value, color, indexOffset = 0) => {
     const y = yStart - lineGap * indexOffset;
-    page.drawText(label, { x: 40, y, size: 12, color: PDFLib.rgb(0.8, 0.86, 0.95) });
+    page.drawText(label, { x: 40, y, size: 12, color: pdfLib.rgb(0.8, 0.86, 0.95) });
     page.drawText(value, { x: 140, y, size: 12, color });
   };
 
-  drawLine("Category", parsedName.category, PDFLib.rgb(0.23, 0.51, 0.96), 0);
-  drawLine("Sub-category", parsedName.subCategory, PDFLib.rgb(0.92, 0.28, 0.6), 1);
-  drawLine("Phase", `Phase ${parsedName.phase}`, PDFLib.rgb(0.98, 0.45, 0.09), 2);
-  drawLine("Details", parsedName.details, PDFLib.rgb(0.13, 0.77, 0.36), 3);
-  drawLine("Amount", MONEY_FORMAT.format(exp.amount), PDFLib.rgb(0, 0.32, 0.71), 4);
-  drawLine("Sheet", exp.sheet, PDFLib.rgb(0.2, 0.2, 0.2), 5);
+  drawLine("Category", parsedName.category, pdfLib.rgb(0.23, 0.51, 0.96), 0);
+  drawLine("Sub-category", parsedName.subCategory, pdfLib.rgb(0.92, 0.28, 0.6), 1);
+  drawLine("Phase", `Phase ${parsedName.phase}`, pdfLib.rgb(0.98, 0.45, 0.09), 2);
+  drawLine("Details", parsedName.details, pdfLib.rgb(0.13, 0.77, 0.36), 3);
+  drawLine("Amount", MONEY_FORMAT.format(exp.amount), pdfLib.rgb(0, 0.32, 0.71), 4);
+  drawLine("Sheet", exp.sheet, pdfLib.rgb(0.2, 0.2, 0.2), 5);
 }
 
 async function createReportDocument() {
-  const doc = await PDFLib.PDFDocument.create();
+  const pdfLib = await ensurePdfLib();
+  const doc = await pdfLib.PDFDocument.create();
 
   for (let i = 0; i < expenses.length; i++) {
     const exp = expenses[i];
-    await addDetailPage(doc, i + 1, exp);
+    await addDetailPage(pdfLib, doc, i + 1, exp);
 
     const invoice = attachments[i]?.invoice;
     if (invoice) {
       if (invoice.type === "application/pdf") {
-        await appendPdfAttachment(doc, invoice);
+        await appendPdfAttachment(pdfLib, doc, invoice);
       } else {
-        await appendImageAttachment(doc, invoice, `Invoice for expense ${i + 1}`);
+        await appendImageAttachment(pdfLib, doc, invoice, `Invoice for expense ${i + 1}`);
       }
     } else {
-      addBlankPage(doc, `Expense ${i + 1}: no invoice uploaded.`);
+      addBlankPage(pdfLib, doc, `Expense ${i + 1}: no invoice uploaded.`);
     }
 
     const proof = attachments[i]?.proof;
     if (proof) {
       if (proof.type === "application/pdf") {
-        await appendPdfAttachment(doc, proof);
+        await appendPdfAttachment(pdfLib, doc, proof);
       } else {
-        await appendImageAttachment(doc, proof, `Proof of payment for expense ${i + 1}`);
+        await appendImageAttachment(pdfLib, doc, proof, `Proof of payment for expense ${i + 1}`);
       }
     } else {
-      addBlankPage(doc, `Expense ${i + 1}: no proof uploaded.`);
+      addBlankPage(pdfLib, doc, `Expense ${i + 1}: no proof uploaded.`);
     }
   }
 
@@ -431,7 +471,8 @@ async function saveProgress() {
 
 async function loadSavedProgress(file) {
   const buffer = await readFileAsArrayBuffer(file);
-  const doc = await PDFLib.PDFDocument.load(buffer);
+  const pdfLib = await ensurePdfLib();
+  const doc = await pdfLib.PDFDocument.load(buffer);
 
   const attachments = typeof doc.getAttachments === "function" ? doc.getAttachments() : [];
   const saveAttachment = attachments?.find((att) => att.name === SAVE_ATTACHMENT_NAME);
