@@ -18,7 +18,8 @@ function showMessage(text, tone = "info") {
   generateButton.disabled = tone === "loading";
 }
 
-function updateActionAvailability(hasExpenses) {
+function updateActionAvailability() {
+  const hasExpenses = Array.isArray(expenses) && expenses.length > 0;
   generateButton.disabled = !hasExpenses;
   saveButton.disabled = !hasExpenses;
 }
@@ -123,7 +124,7 @@ function clearTable() {
   `;
   expenses = [];
   attachments = [];
-  updateActionAvailability(false);
+  updateActionAvailability();
 }
 
 function renderTable(data, existingAttachments = []) {
@@ -183,7 +184,7 @@ function renderTable(data, existingAttachments = []) {
     expensesTableBody.appendChild(row);
   });
 
-  updateActionAvailability(true);
+  updateActionAvailability();
 }
 
 async function readFileAsArrayBuffer(file) {
@@ -379,7 +380,7 @@ async function generateReport() {
     console.error(err);
   } finally {
     showMessage("Generate report PDF", "idle");
-    updateActionAvailability(!!expenses.length);
+    updateActionAvailability();
   }
 }
 
@@ -399,7 +400,7 @@ async function saveProgress() {
     console.error(err);
   } finally {
     saveButton.textContent = "Save progress PDF";
-    updateActionAvailability(!!expenses.length);
+    updateActionAvailability();
   }
 }
 
@@ -431,6 +432,7 @@ async function loadSavedProgress(file) {
   versionSelect.value = String(payload.templateVersion || 1);
   expenses = payload.expenses || [];
   renderTable(expenses, restoredAttachments);
+  updateActionAvailability();
 }
 
 loadButton.addEventListener("click", async () => {
@@ -450,6 +452,7 @@ loadButton.addEventListener("click", async () => {
       const data = await loadBudgetFromFile(file, version);
       expenses = data;
       renderTable(data);
+      updateActionAvailability();
     }
   } catch (err) {
     alert(`Unable to read the file: ${err.message}`);
