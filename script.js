@@ -195,13 +195,13 @@ function addBlankPage(doc, message) {
 
 async function addDetailPage(doc, index, exp) {
   const page = doc.addPage([595.28, 841.89]);
-  page.drawText(`Expense ${index}`, { x: 40, y: 780, size: 18, color: PDFLib.rgb(0.33, 0.84, 1) });
-  page.drawText("Name", { x: 40, y: 740, size: 12, color: PDFLib.rgb(0.8, 0.86, 0.95) });
-  page.drawText(exp.name || "(unnamed)", { x: 40, y: 720, size: 12, color: PDFLib.rgb(1, 1, 1) });
-  page.drawText("Amount", { x: 40, y: 690, size: 12, color: PDFLib.rgb(0.8, 0.86, 0.95) });
-  page.drawText(MONEY_FORMAT.format(exp.amount), { x: 40, y: 670, size: 12, color: PDFLib.rgb(1, 1, 1) });
-  page.drawText("Sheet", { x: 40, y: 640, size: 12, color: PDFLib.rgb(0.8, 0.86, 0.95) });
-  page.drawText(exp.sheet, { x: 40, y: 620, size: 12, color: PDFLib.rgb(1, 1, 1) });
+  page.drawText(`Expense ${index}`, { x: 40, y: 780, size: 18, color: PDFLib.rgb(0.14, 0.52, 0.92) });
+  page.drawText("Name", { x: 40, y: 740, size: 12, color: PDFLib.rgb(0, 0, 0) });
+  page.drawText(exp.name || "(unnamed)", { x: 40, y: 720, size: 12, color: PDFLib.rgb(0, 0, 0) });
+  page.drawText("Amount", { x: 40, y: 690, size: 12, color: PDFLib.rgb(0, 0.32, 0.71) });
+  page.drawText(MONEY_FORMAT.format(exp.amount), { x: 40, y: 670, size: 12, color: PDFLib.rgb(0, 0.32, 0.71) });
+  page.drawText("Sheet", { x: 40, y: 640, size: 12, color: PDFLib.rgb(0.2, 0.2, 0.2) });
+  page.drawText(exp.sheet, { x: 40, y: 620, size: 12, color: PDFLib.rgb(0.2, 0.2, 0.2) });
 }
 
 async function generateReport() {
