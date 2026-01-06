@@ -447,13 +447,20 @@ async function buildSaveMetadata() {
     });
   }
 
+  let budgetPayload = null;
+  const budgetFile = budgetInput.files?.[0];
+  if (budgetFile) {
+    budgetPayload = await serializeAttachment(budgetFile);
+  }
+
   return {
     kind: "BudgetToolSave",
     schemaVersion: 1,
     templateVersion: Number(versionSelect.value),
-    budgetFileName: budgetInput.files?.[0]?.name || "",
+    budgetFileName: budgetFile?.name || "",
     expenses,
     attachments: serializedAttachments,
+    budgetFile: budgetPayload,
   };
 }
 
@@ -475,6 +482,10 @@ async function attachSaveData(doc, metadata) {
 
   doc.setSubject(JSON.stringify(lightMetadata));
   doc.setTitle("Budget Tool progress save");
+  if (typeof doc.attach !== "function") {
+    throw new Error("PDF library does not support embedded attachments.");
+  }
+
   doc.attach(payload, SAVE_ATTACHMENT_NAME, {
     mimeType: "application/json",
     description: "Budget Tool save data",
@@ -521,7 +532,8 @@ async function loadSavedProgress(file) {
   const pdfLib = await ensurePdfLib();
   const doc = await pdfLib.PDFDocument.load(buffer);
 
-  const attachments = typeof doc.getAttachments === "function" ? doc.getAttachments() : [];
+  const attachments =
+    typeof doc.getAttachments === "function" ? await doc.getAttachments() : [];
   const saveAttachment = attachments?.find((att) => att.name === SAVE_ATTACHMENT_NAME);
   const subject = doc.getSubject();
 
@@ -551,8 +563,21 @@ async function loadSavedProgress(file) {
     proof: pair?.proof ? base64ToFile(pair.proof.data, pair.proof.name, pair.proof.type) : null,
   }));
 
+  if (!payload.expenses?.length && payload.budgetFile?.data) {
+    try {
+      const budgetFile = base64ToFile(payload.budgetFile.data, payload.budgetFile.name, payload.budgetFile.type);
+      if (budgetFile) {
+        const data = await loadBudgetFromFile(budgetFile, payload.templateVersion || 1);
+        expenses = data;
+      }
+    } catch (err) {
+      console.warn("Unable to rebuild expenses from saved budget file:", err);
+    }
+  } else {
+    expenses = payload.expenses || [];
+  }
+
   versionSelect.value = String(payload.templateVersion || 1);
-  expenses = payload.expenses || [];
   renderTable(expenses, restoredAttachments);
   updateActionAvailability();
 }
