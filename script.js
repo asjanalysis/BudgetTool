@@ -205,32 +205,71 @@ async function ensurePdfLib() {
 
   if (!pdfLibPromise) {
     pdfLibPromise = new Promise((resolve, reject) => {
+      const tryResolve = () => {
+        if (window.PDFLib) {
+          resolve(window.PDFLib);
+          return true;
+        }
+        return false;
+      };
+
+      if (tryResolve()) return;
+
+      const loadScript = (src, role, { onError, onLoad } = {}) => {
+        const loader = document.createElement("script");
+        loader.src = src;
+        loader.defer = true;
+        loader.dataset.role = role;
+        loader.addEventListener("load", () => {
+          if (tryResolve()) {
+            onLoad?.();
+            return;
+          }
+          if (onError) {
+            onError(new Error("PDF library failed to initialize."));
+          } else {
+            reject(new Error("PDF library failed to initialize."));
+          }
+        });
+        loader.addEventListener("error", () => {
+          if (onError) {
+            onError(new Error("Unable to load PDF library. Please check your connection and try again."));
+          } else {
+            reject(new Error("Unable to load PDF library. Please check your connection and try again."));
+          }
+        });
+        document.head.appendChild(loader);
+        return loader;
+      };
+
       const existing = document.querySelector("script[data-role='pdf-lib']");
-      const script = existing || document.createElement("script");
+      let fallbackStarted = false;
 
-      if (!existing) {
-        script.src = "https://cdn.jsdelivr.net/npm/pdf-lib@1.18.0/dist/pdf-lib.min.js";
-        script.defer = true;
-        script.dataset.role = "pdf-lib";
-        document.head.appendChild(script);
+      const startFallback = () => {
+        if (fallbackStarted) return;
+        fallbackStarted = true;
+        loadScript("https://cdn.jsdelivr.net/npm/pdf-lib@1.18.0/dist/pdf-lib.min.js", "pdf-lib-fallback");
+      };
+
+      if (existing) {
+        const onLoad = () => {
+          if (!tryResolve()) startFallback();
+        };
+        const onError = () => startFallback();
+
+        existing.addEventListener("load", onLoad, { once: true });
+        existing.addEventListener("error", onError, { once: true });
+
+        if (existing.readyState === "complete" || existing.readyState === "loaded") {
+          onLoad();
+        }
+      } else {
+        const primary = loadScript(
+          "https://unpkg.com/pdf-lib@1.18.0/dist/pdf-lib.min.js",
+          "pdf-lib",
+          { onError: () => startFallback(), onLoad: () => startFallback() }
+        );
       }
-
-      const finish = () =>
-        window.PDFLib
-          ? resolve(window.PDFLib)
-          : reject(new Error("PDF library failed to initialize."));
-
-      if (window.PDFLib) {
-        finish();
-        return;
-      }
-
-      script.addEventListener("load", finish, { once: true });
-      script.addEventListener(
-        "error",
-        () => reject(new Error("Unable to load PDF library. Please check your connection and try again.")),
-        { once: true }
-      );
     });
   }
 
