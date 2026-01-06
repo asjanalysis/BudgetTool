@@ -350,8 +350,16 @@ async function downloadPdf(doc, filename) {
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
+  link.style.display = "none";
+
+  // Some browsers block downloads from detached anchors, so append to the DOM
+  // before triggering the click and clean up afterward.
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(url);
+  document.body.removeChild(link);
+
+  // Allow the click event to propagate before revoking the URL
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function arrayBufferToBase64(buffer) {
