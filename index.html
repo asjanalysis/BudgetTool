@@ -6,7 +6,7 @@
   <title>Budget Tool - Expense Report Helper</title>
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
-  <script src="https://unpkg.com/pdf-lib@1.18.0/dist/pdf-lib.min.js" data-role="pdf-lib" defer></script>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js" defer></script>
   <script src="script.js" defer></script>
 </head>
 <body>
@@ -29,15 +29,14 @@
       <div class="input-row">
         <div>
           <label for="budgetFile" class="button">Upload budget spreadsheet</label>
-          <input id="budgetFile" type="file" accept=".xlsx,.xls,.xlsm,application/pdf" />
+          <input id="budgetFile" type="file" accept=".xlsx,.xls,.xlsm" />
         </div>
         <div class="actions">
           <button id="loadBudget" class="primary">Load expenses</button>
-          <button id="saveProgress" class="primary" disabled>Save progress PDF</button>
           <button id="generateReport" class="primary" disabled>Generate report PDF</button>
         </div>
       </div>
-      <p class="hint">Files are read only in your browser—nothing is uploaded or saved on our servers. You can also re-open a saved progress PDF to pick up where you left off.</p>
+      <p class="hint">Files are read only in your browser—nothing is uploaded or saved on our servers.</p>
     </section>
 
     <section class="card">
