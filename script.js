@@ -242,8 +242,8 @@ async function ensurePdfLib() {
         return loader;
       };
 
-      const existing = document.querySelector("script[data-role='pdf-lib']");
       let fallbackStarted = false;
+      let resolved = false;
 
       const startFallback = () => {
         if (fallbackStarted) return;
@@ -251,25 +251,41 @@ async function ensurePdfLib() {
         loadScript("https://cdn.jsdelivr.net/npm/pdf-lib@1.18.0/dist/pdf-lib.min.js", "pdf-lib-fallback");
       };
 
-      if (existing) {
-        const onLoad = () => {
-          if (!tryResolve()) startFallback();
-        };
-        const onError = () => startFallback();
+      const markResolved = () => {
+        resolved = true;
+      };
 
-        existing.addEventListener("load", onLoad, { once: true });
-        existing.addEventListener("error", onError, { once: true });
-
-        if (existing.readyState === "complete" || existing.readyState === "loaded") {
-          onLoad();
+      const primary = loadScript(
+        "https://unpkg.com/pdf-lib@1.18.0/dist/pdf-lib.min.js",
+        "pdf-lib",
+        {
+          onError: () => startFallback(),
+          onLoad: () => {
+            if (!tryResolve()) startFallback();
+            markResolved();
+          },
         }
-      } else {
-        const primary = loadScript(
-          "https://unpkg.com/pdf-lib@1.18.0/dist/pdf-lib.min.js",
-          "pdf-lib",
-          { onError: () => startFallback(), onLoad: () => startFallback() }
-        );
-      }
+      );
+
+      const fallbackTimeout = setTimeout(() => {
+        if (!resolved && !tryResolve()) startFallback();
+      }, 2000);
+
+      primary.addEventListener(
+        "load",
+        () => {
+          markResolved();
+        },
+        { once: true }
+      );
+
+      primary.addEventListener(
+        "error",
+        () => {
+          markResolved();
+        },
+        { once: true }
+      );
     });
   }
 
