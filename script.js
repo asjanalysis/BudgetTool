@@ -2,6 +2,7 @@ const budgetInput = document.getElementById("budgetFile");
 const versionSelect = document.getElementById("version");
 const loadButton = document.getElementById("loadBudget");
 const generateButton = document.getElementById("generateReport");
+const savePointButton = document.getElementById("downloadSavePoint");
 const expensesTableBody = document.querySelector("#expensesTable tbody");
 
 let expenses = [];
@@ -87,6 +88,21 @@ function renderExpenseName(name) {
   `;
 }
 
+function addExpenseIds(list) {
+  const counts = new Map();
+  return list.map((exp) => {
+    const base = `${exp.sheet}||${exp.name}||${exp.amount}`;
+    const n = (counts.get(base) || 0) + 1;
+    counts.set(base, n);
+    return { ...exp, id: `${base}||${n}` };
+  });
+}
+
+function isSavePointFile(file) {
+  const name = (file?.name || "").toLowerCase();
+  return name.endsWith(".btsp") || name.endsWith(".zip");
+}
+
 async function loadBudgetFromFile(file, version) {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: "array" });
@@ -118,16 +134,17 @@ function clearTable() {
   expenses = [];
   attachments = [];
   generateButton.disabled = true;
+  if (savePointButton) savePointButton.disabled = true;
 }
 
-function renderTable(data) {
+function renderTable(data, existingAttachments = null) {
   if (!data.length) {
     clearTable();
     return;
   }
 
   expensesTableBody.innerHTML = "";
-  attachments = data.map(() => ({ invoice: null, proof: null }));
+  attachments = existingAttachments || data.map(() => ({ invoice: null, proof: null }));
 
   data.forEach((exp, index) => {
     const row = document.createElement("tr");
@@ -167,10 +184,34 @@ function renderTable(data) {
       label.textContent = file ? file.name : "No file";
     });
 
+    const invLabel = row.querySelector('[data-role="invoice-name"]');
+    if (invLabel) {
+      invLabel.textContent = attachments[index]?.invoice ? attachments[index].invoice.name : "No file";
+    }
+
+    const proofLabel = row.querySelector('[data-role="proof-name"]');
+    if (proofLabel) {
+      proofLabel.textContent = attachments[index]?.proof ? attachments[index].proof.name : "No file";
+    }
+
     expensesTableBody.appendChild(row);
   });
 
   generateButton.disabled = false;
+  if (savePointButton) savePointButton.disabled = false;
+}
+
+function sanitizeFilename(name) {
+  return String(name || "file").replace(/[^\w.\-() ]+/g, "_");
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 async function readFileAsArrayBuffer(file) {
@@ -180,6 +221,34 @@ async function readFileAsArrayBuffer(file) {
     reader.onerror = () => reject(reader.error);
     reader.readAsArrayBuffer(file);
   });
+}
+
+async function buildProgressPdfBytes() {
+  const doc = await PDFLib.PDFDocument.create();
+
+  for (let i = 0; i < expenses.length; i++) {
+    const exp = expenses[i];
+    const page = await addDetailPage(doc, i + 1, exp);
+
+    const invoiceName = attachments[i]?.invoice?.name || "NOT UPLOADED";
+    const proofName = attachments[i]?.proof?.name || "NOT UPLOADED";
+
+    page.drawText(`Invoice: ${invoiceName}`, {
+      x: 50,
+      y: 90,
+      size: 10,
+      color: PDFLib.rgb(0.2, 0.2, 0.2),
+    });
+
+    page.drawText(`Proof: ${proofName}`, {
+      x: 50,
+      y: 75,
+      size: 10,
+      color: PDFLib.rgb(0.2, 0.2, 0.2),
+    });
+  }
+
+  return await doc.save();
 }
 
 async function appendPdfAttachment(doc, file) {
@@ -251,6 +320,135 @@ async function addDetailPage(doc, index, exp) {
   drawLine("Details", parsedName.details, PDFLib.rgb(0.13, 0.77, 0.36), 3);
   drawLine("Amount", MONEY_FORMAT.format(exp.amount), PDFLib.rgb(0, 0.32, 0.71), 4);
   drawLine("Sheet", exp.sheet, PDFLib.rgb(0.2, 0.2, 0.2), 5);
+
+  return page;
+}
+
+async function downloadSavePoint() {
+  if (!expenses.length) return;
+  if (typeof JSZip === "undefined") {
+    alert("JSZip failed to load. Check index.html script tag.");
+    return;
+  }
+
+  const oldText = savePointButton?.textContent;
+  if (savePointButton) {
+    savePointButton.disabled = true;
+    savePointButton.textContent = "Packaging...";
+  }
+
+  try {
+    const zip = new JSZip();
+    const templateVersion = Number(versionSelect.value);
+
+    const manifest = attachments.map((att, idx) => {
+      const out = {};
+      if (att?.invoice) {
+        const safe = sanitizeFilename(att.invoice.name);
+        out.invoice = {
+          name: att.invoice.name,
+          type: att.invoice.type || "application/octet-stream",
+          path: `attachments/${idx + 1}/invoice_${safe}`,
+        };
+      }
+      if (att?.proof) {
+        const safe = sanitizeFilename(att.proof.name);
+        out.proof = {
+          name: att.proof.name,
+          type: att.proof.type || "application/octet-stream",
+          path: `attachments/${idx + 1}/proof_${safe}`,
+        };
+      }
+      return out;
+    });
+
+    const state = {
+      schemaVersion: 1,
+      createdAt: new Date().toISOString(),
+      templateVersion,
+      expenses: expenses.map((exp) => ({
+        id: exp.id,
+        name: exp.name,
+        amount: exp.amount,
+        sheet: exp.sheet,
+      })),
+      attachments: manifest,
+    };
+
+    zip.file("state.json", JSON.stringify(state, null, 2));
+
+    const progressPdfBytes = await buildProgressPdfBytes();
+    zip.file("progress-report.pdf", progressPdfBytes);
+
+    for (let i = 0; i < attachments.length; i++) {
+      const inv = attachments[i]?.invoice;
+      if (inv) {
+        zip.file(manifest[i].invoice.path, await readFileAsArrayBuffer(inv));
+      }
+
+      const pr = attachments[i]?.proof;
+      if (pr) {
+        zip.file(manifest[i].proof.path, await readFileAsArrayBuffer(pr));
+      }
+    }
+
+    const blob = await zip.generateAsync({ type: "blob" });
+    const date = new Date().toISOString().slice(0, 10);
+    downloadBlob(blob, `BudgetTool_SavePoint_${date}.btsp`);
+  } catch (err) {
+    console.error(err);
+    alert(`Failed to create Save Point: ${err.message}`);
+  } finally {
+    if (savePointButton) {
+      savePointButton.textContent = oldText;
+      savePointButton.disabled = !expenses.length;
+    }
+  }
+}
+
+async function loadSavePoint(file) {
+  if (typeof JSZip === "undefined") {
+    throw new Error("JSZip is not available.");
+  }
+
+  const zipBytes = await readFileAsArrayBuffer(file);
+  const zip = await JSZip.loadAsync(zipBytes);
+
+  const stateText = await zip.file("state.json")?.async("string");
+  if (!stateText) throw new Error("Save Point missing state.json");
+
+  const state = JSON.parse(stateText);
+  if (state.schemaVersion !== 1) {
+    throw new Error(`Unsupported schemaVersion: ${state.schemaVersion}`);
+  }
+
+  if (state.templateVersion) {
+    versionSelect.value = String(state.templateVersion);
+  }
+
+  expenses = (state.expenses || []).map((exp) => ({
+    id: exp.id,
+    name: exp.name,
+    amount: exp.amount,
+    sheet: exp.sheet,
+  }));
+
+  const restoredAttachments = expenses.map(() => ({ invoice: null, proof: null }));
+
+  for (let i = 0; i < (state.attachments || []).length; i++) {
+    const att = state.attachments[i] || {};
+
+    if (att.invoice?.path) {
+      const bytes = await zip.file(att.invoice.path).async("uint8array");
+      restoredAttachments[i].invoice = new File([bytes], att.invoice.name, { type: att.invoice.type });
+    }
+    if (att.proof?.path) {
+      const bytes = await zip.file(att.proof.path).async("uint8array");
+      restoredAttachments[i].proof = new File([bytes], att.proof.name, { type: att.proof.type });
+    }
+  }
+
+  renderTable(expenses, restoredAttachments);
 }
 
 async function generateReport() {
@@ -315,12 +513,17 @@ loadButton.addEventListener("click", async () => {
   try {
     loadButton.disabled = true;
     loadButton.textContent = "Loading...";
-    const version = Number(versionSelect.value);
-    const data = await loadBudgetFromFile(file, version);
-    expenses = data;
-    renderTable(data);
+
+    if (isSavePointFile(file)) {
+      await loadSavePoint(file);
+    } else {
+      const version = Number(versionSelect.value);
+      const data = await loadBudgetFromFile(file, version);
+      expenses = addExpenseIds(data);
+      renderTable(expenses);
+    }
   } catch (err) {
-    alert(`Unable to read the spreadsheet: ${err.message}`);
+    alert(`Unable to load the file: ${err.message}`);
     console.error(err);
     clearTable();
   } finally {
@@ -337,5 +540,9 @@ budgetInput.addEventListener("change", () => {
     label.textContent = `Selected: ${file.name}`;
   }
 });
+
+if (savePointButton) {
+  savePointButton.addEventListener("click", downloadSavePoint);
+}
 
 generateButton.addEventListener("click", generateReport);
