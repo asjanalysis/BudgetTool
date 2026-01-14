@@ -49,6 +49,21 @@ function addRows(sheet, nameCols, amtCol, rows) {
   return list;
 }
 
+function addRowsFromStart(sheet, nameCols, amtCol, rows, startRowIndex) {
+  const list = [];
+  for (let i = startRowIndex; i < rows.length; i++) {
+    const row = rows[i] || [];
+    const nameParts = [];
+    for (let j = 0; j < nameCols; j++) {
+      if (row[j]) nameParts.push(row[j]);
+    }
+    const amount = parseAmount(row[amtCol]);
+    if (amount === 0) continue;
+    list.push({ name: nameParts.join(" - "), amount, sheet });
+  }
+  return list;
+}
+
 function parseExpenseName(name) {
   const fallback = {
     category: "(category)",
@@ -120,23 +135,49 @@ async function loadBudgetFromFile(file, version) {
       ...addRows("NonPersonnel_Expenses", 3, 9, getRows("NonPersonnel_Expenses"))
     );
   } else {
-    expensesSheetName =
+    const expensesSheetName =
       workbook.SheetNames.find((name) => name.trim().toLowerCase() === "expenses") || "Expenses";
     const expenseSheet = workbook.Sheets[expensesSheetName];
-    const expenseRows = expenseSheet
-      ? XLSX.utils.sheet_to_json(expenseSheet, { header: 1, defval: "" })
-      : [];
-    const V1_FIRST_EXPENSE_ROW_INDEX = 10;
-    const offset = Math.max(0, V1_FIRST_EXPENSE_ROW_INDEX - 6);
-    const rowsForAddRows = expenseRows.slice(offset);
-    parsed.push(...addRows(expensesSheetName, 10, 10, rowsForAddRows));
-  }
 
-  if (version === 1 && parsed.length === 0) {
-    console.warn(
-      "Version 1: parsed 0 expenses. Expected first expenses on row 11 with amount in column K.",
-      { expensesSheetName }
+    let expenseRows = [];
+    if (expenseSheet && expenseSheet["!ref"]) {
+      const range = XLSX.utils.decode_range(expenseSheet["!ref"]);
+      range.s.c = 0;
+      range.s.r = 0;
+      range.e.c = Math.max(range.e.c, 10);
+
+      expenseRows = XLSX.utils.sheet_to_json(expenseSheet, {
+        header: 1,
+        defval: "",
+        blankrows: true,
+        range,
+      });
+    }
+
+    const V1_FIRST_EXPENSE_ROW_INDEX = 10;
+
+    parsed.push(
+      ...addRowsFromStart(expensesSheetName, 10, 10, expenseRows, V1_FIRST_EXPENSE_ROW_INDEX)
     );
+
+    if (parsed.length === 0) {
+      const sample = [];
+      for (
+        let r = V1_FIRST_EXPENSE_ROW_INDEX;
+        r < Math.min(expenseRows.length, V1_FIRST_EXPENSE_ROW_INDEX + 5);
+        r++
+      ) {
+        sample.push({
+          r: r + 1,
+          colK: expenseRows[r]?.[10],
+          rowPreview: expenseRows[r]?.slice(0, 12),
+        });
+      }
+      console.warn(
+        "Version 1: parsed 0 expenses. Expected first expenses on row 11 with amount in column K.",
+        { expensesSheetName, sample }
+      );
+    }
   }
 
   return parsed;
