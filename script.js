@@ -125,74 +125,13 @@ async function loadBudgetFromFile(file, version) {
     const expenseRows = expenseSheet
       ? XLSX.utils.sheet_to_json(expenseSheet, { header: 1, defval: "" })
       : [];
-    const headerTargets = [
-      "budget category",
-      "sub-category",
-      "project phase",
-      "vendor",
-      "item",
-      "amount",
-    ];
-    let headerRowIndex = -1;
-    let headerMap = {};
+    parsed.push(...addRows(expensesSheetName, 10, 10, expenseRows));
+  }
 
-    for (let i = 0; i < expenseRows.length; i++) {
-      const row = expenseRows[i] || [];
-      const normalized = row.map((cell) => String(cell || "").trim().toLowerCase());
-      const hits = headerTargets.filter((target) =>
-        normalized.some((cell) => cell.includes(target))
-      );
-      if (hits.length >= 3) {
-        headerRowIndex = i;
-        headerMap = normalized.reduce((acc, cell, index) => {
-          if (!cell) return acc;
-          if (cell.includes("budget category")) acc.category = index;
-          if (cell.includes("sub-category")) acc.subCategory = index;
-          if (cell.includes("project phase")) acc.phase = index;
-          if (cell.includes("vendor")) acc.vendor = index;
-          if (cell.includes("item")) acc.item = index;
-          if (cell.includes("invoice") && cell.includes("credit")) acc.invoice = index;
-          if (cell.includes("invoice") && cell.includes("date")) acc.invoiceDate = index;
-          if (cell.includes("transaction type")) acc.transaction = index;
-          if (cell.includes("check") || cell.includes("voucher")) acc.check = index;
-          if (cell.includes("amount")) acc.amount = index;
-          return acc;
-        }, {});
-        break;
-      }
-    }
-
-    const amountCol = Number.isInteger(headerMap.amount) ? headerMap.amount : 10;
-    const startRow = headerRowIndex >= 0 ? headerRowIndex + 1 : 6;
-    const list = [];
-
-    for (let i = startRow; i < expenseRows.length; i++) {
-      const row = expenseRows[i] || [];
-      const amount = parseAmount(row[amountCol]);
-      if (amount === 0) continue;
-
-      const nameParts = [
-        row[headerMap.category],
-        row[headerMap.subCategory],
-        row[headerMap.phase],
-        row[headerMap.vendor],
-        row[headerMap.item],
-        row[headerMap.invoice],
-        row[headerMap.invoiceDate],
-        row[headerMap.transaction],
-        row[headerMap.check],
-      ]
-        .map((value) => (value === null || value === undefined ? "" : String(value).trim()))
-        .filter(Boolean);
-
-      list.push({
-        name: nameParts.join(" - "),
-        amount,
-        sheet: expensesSheetName,
-      });
-    }
-
-    parsed.push(...list);
+  if (version === 1 && parsed.length === 0) {
+    console.warn(
+      "Version 1: parsed 0 expenses. Check that amounts are in column K and data starts on row 7."
+    );
   }
 
   return parsed;
