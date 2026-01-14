@@ -119,7 +119,45 @@ async function loadBudgetFromFile(file, version) {
       ...addRows("NonPersonnel_Expenses", 3, 9, getRows("NonPersonnel_Expenses"))
     );
   } else {
-    parsed.push(...addRows("Expenses", 10, 10, getRows("Expenses")));
+    const expensesSheetName =
+      workbook.SheetNames.find((name) => name.trim().toLowerCase() === "expenses") || "Expenses";
+    const expenseRows = getRows(expensesSheetName);
+    let headerRowIndex = -1;
+    let amountColIndex = -1;
+
+    for (let i = 0; i < expenseRows.length; i++) {
+      const row = expenseRows[i] || [];
+      const headerIndex = row.findIndex((cell) =>
+        typeof cell === "string" ? cell.trim().toLowerCase().includes("amount") : false
+      );
+      if (headerIndex >= 0) {
+        headerRowIndex = i;
+        amountColIndex = headerIndex;
+        break;
+      }
+    }
+
+    const startRow = headerRowIndex >= 0 ? headerRowIndex + 1 : 6;
+    const nameCols = amountColIndex > 0 ? amountColIndex : 10;
+    const amountCol = amountColIndex >= 0 ? amountColIndex : 10;
+    const list = [];
+
+    for (let i = startRow; i < expenseRows.length; i++) {
+      const row = expenseRows[i] || [];
+      const nameParts = [];
+      for (let j = 0; j < nameCols; j++) {
+        if (row[j]) nameParts.push(row[j]);
+      }
+      const amount = parseAmount(row[amountCol]);
+      if (amount === 0) continue;
+      list.push({
+        name: nameParts.join(" - "),
+        amount,
+        sheet: expensesSheetName,
+      });
+    }
+
+    parsed.push(...list);
   }
 
   return parsed;
