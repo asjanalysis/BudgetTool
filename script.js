@@ -113,24 +113,29 @@ async function loadBudgetFromFile(file, version) {
   };
 
   const parsed = [];
+  let expensesSheetName;
   if (version === 2) {
     parsed.push(
       ...addRows("Personnel_Expenses", 6, 6, getRows("Personnel_Expenses")),
       ...addRows("NonPersonnel_Expenses", 3, 9, getRows("NonPersonnel_Expenses"))
     );
   } else {
-    const expensesSheetName =
+    expensesSheetName =
       workbook.SheetNames.find((name) => name.trim().toLowerCase() === "expenses") || "Expenses";
     const expenseSheet = workbook.Sheets[expensesSheetName];
     const expenseRows = expenseSheet
       ? XLSX.utils.sheet_to_json(expenseSheet, { header: 1, defval: "" })
       : [];
-    parsed.push(...addRows(expensesSheetName, 10, 10, expenseRows));
+    const V1_FIRST_EXPENSE_ROW_INDEX = 10;
+    const offset = Math.max(0, V1_FIRST_EXPENSE_ROW_INDEX - 6);
+    const rowsForAddRows = expenseRows.slice(offset);
+    parsed.push(...addRows(expensesSheetName, 10, 10, rowsForAddRows));
   }
 
   if (version === 1 && parsed.length === 0) {
     console.warn(
-      "Version 1: parsed 0 expenses. Check that amounts are in column K and data starts on row 7."
+      "Version 1: parsed 0 expenses. Expected first expenses on row 11 with amount in column K.",
+      { expensesSheetName }
     );
   }
 
