@@ -1,5 +1,7 @@
 const budgetInput = document.getElementById("budgetFile");
 const versionSelect = document.getElementById("version");
+const cardV1 = document.getElementById("templateCardV1");
+const cardV2 = document.getElementById("templateCardV2");
 const loadButton = document.getElementById("loadBudget");
 const generateButton = document.getElementById("generateReport");
 const savePointButton = document.getElementById("downloadSavePoint");
@@ -12,6 +14,20 @@ const MONEY_FORMAT = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
 });
+
+function setActiveCard(version) {
+  if (!cardV1 || !cardV2) return;
+  cardV1.classList.toggle("active", version === "1");
+  cardV2.classList.toggle("active", version === "2");
+  cardV1.setAttribute("aria-pressed", version === "1" ? "true" : "false");
+  cardV2.setAttribute("aria-pressed", version === "2" ? "true" : "false");
+}
+
+function userSelectVersion(version) {
+  versionSelect.value = version;
+  setActiveCard(version);
+  versionSelect.dispatchEvent(new Event("change", { bubbles: true }));
+}
 
 function showMessage(text, tone = "info") {
   generateButton.textContent = tone === "loading" ? text : "Generate report PDF";
@@ -480,10 +496,6 @@ async function loadSavePoint(file) {
     throw new Error(`Unsupported schemaVersion: ${state.schemaVersion}`);
   }
 
-  if (state.templateVersion) {
-    versionSelect.value = String(state.templateVersion);
-  }
-
   expenses = (state.expenses || []).map((exp) => ({
     id: exp.id,
     name: exp.name,
@@ -604,3 +616,9 @@ if (savePointButton) {
 }
 
 generateButton.addEventListener("click", generateReport);
+
+if (cardV1 && cardV2) {
+  cardV1.addEventListener("click", () => userSelectVersion("1"));
+  cardV2.addEventListener("click", () => userSelectVersion("2"));
+  setActiveCard(versionSelect.value || "1");
+}

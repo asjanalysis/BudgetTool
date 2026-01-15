@@ -56,6 +56,119 @@ header p {
   min-width: 220px;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.template-card-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.template-card {
+  border: 1px solid var(--border);
+  background: rgba(15, 24, 52, 0.85);
+  padding: 10px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  min-height: 84px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.template-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(85, 214, 255, 0.6);
+  background: rgba(26, 38, 70, 0.95);
+}
+
+.template-card.active {
+  border-color: rgba(85, 214, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(85, 214, 255, 0.25), 0 10px 26px rgba(0, 0, 0, 0.25);
+  background: rgba(26, 45, 84, 0.95);
+}
+
+.template-card-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(85, 214, 255, 0.08);
+  border: 1px solid rgba(85, 214, 255, 0.2);
+}
+
+.template-card-thumb svg {
+  width: 46px;
+  height: 46px;
+}
+
+.template-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.template-card-title {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.template-card-subtitle {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.instructions-accordion {
+  border-radius: 12px;
+  padding: 6px 4px;
+}
+
+.instructions-accordion summary {
+  cursor: pointer;
+  font-weight: 700;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.instructions-accordion summary::-webkit-details-marker {
+  display: none;
+}
+
+.instructions-accordion summary::after {
+  content: "▾";
+  font-size: 1.1rem;
+  color: var(--muted);
+  transition: transform 0.2s ease;
+}
+
+.instructions-accordion[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.instructions-accordion ol {
+  margin: 12px 0 0 18px;
+  color: var(--muted);
+  display: grid;
+  gap: 6px;
+}
+
 main {
   margin-top: 20px;
   display: flex;
@@ -260,6 +373,9 @@ footer {
 @media (max-width: 720px) {
   header.app-header {
     flex-direction: column;
+  }
+  .template-card-group {
+    grid-template-columns: 1fr;
   }
   th,
   td {

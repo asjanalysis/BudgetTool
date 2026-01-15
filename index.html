@@ -18,14 +18,60 @@
     </div>
     <div class="version-picker">
       <label for="version">Template version</label>
-      <select id="version">
+      <select id="version" class="visually-hidden">
         <option value="1">Version 1 (Expenses)</option>
         <option value="2">Version 2 (Personnel &amp; Non-Personnel)</option>
       </select>
+      <div class="template-card-group" role="group" aria-label="Template version">
+        <button class="template-card" id="templateCardV1" type="button" aria-pressed="false">
+          <span class="template-card-thumb" aria-hidden="true">
+            <svg viewBox="0 0 64 64" role="img" aria-label="Expenses template thumbnail">
+              <rect x="6" y="8" width="52" height="48" rx="8" fill="#182247" />
+              <rect x="12" y="16" width="40" height="8" rx="4" fill="#55d6ff" opacity="0.8" />
+              <rect x="12" y="30" width="26" height="6" rx="3" fill="#a7b3d1" />
+              <rect x="12" y="40" width="34" height="6" rx="3" fill="#a7b3d1" opacity="0.7" />
+              <circle cx="46" cy="34" r="6" fill="#7ed957" opacity="0.9" />
+            </svg>
+          </span>
+          <span class="template-card-content">
+            <span class="template-card-title">Version 1</span>
+            <span class="template-card-subtitle">Expenses</span>
+          </span>
+        </button>
+        <button class="template-card" id="templateCardV2" type="button" aria-pressed="false">
+          <span class="template-card-thumb" aria-hidden="true">
+            <svg viewBox="0 0 64 64" role="img" aria-label="Personnel template thumbnail">
+              <rect x="6" y="8" width="52" height="48" rx="8" fill="#182247" />
+              <rect x="12" y="16" width="30" height="8" rx="4" fill="#ff8f70" opacity="0.85" />
+              <rect x="12" y="30" width="38" height="6" rx="3" fill="#a7b3d1" />
+              <rect x="12" y="40" width="28" height="6" rx="3" fill="#a7b3d1" opacity="0.7" />
+              <circle cx="48" cy="44" r="6" fill="#55d6ff" opacity="0.9" />
+            </svg>
+          </span>
+          <span class="template-card-content">
+            <span class="template-card-title">Version 2</span>
+            <span class="template-card-subtitle">Personnel + Non-Personnel</span>
+          </span>
+        </button>
+      </div>
     </div>
   </header>
 
   <main>
+    <section class="card">
+      <details class="instructions-accordion">
+        <summary>How to use this tool</summary>
+        <ol>
+          <li>Choose Template Version (click Version 1 or Version 2 card)</li>
+          <li>Upload budget spreadsheet OR upload Save Point</li>
+          <li>Click “Load expenses”</li>
+          <li>Attach invoices and proofs of payment to lines</li>
+          <li>Optionally download a Save Point to resume later</li>
+          <li>Generate final report PDF</li>
+        </ol>
+      </details>
+    </section>
+
     <section class="card">
       <div class="input-row">
         <div>
