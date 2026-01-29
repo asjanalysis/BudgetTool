@@ -48,7 +48,7 @@ function parseAmount(raw) {
 
 function addRows(sheet, nameCols, amtCol, rows) {
   const list = [];
-  for (let i = 6; i < rows.length; i++) {
+  for (let i = 0; i < rows.length; i++) {
     const row = rows[i] || [];
     const nameParts = [];
     for (let j = 0; j < nameCols; j++) {
@@ -194,6 +194,12 @@ async function loadBudgetFromFile(file, version) {
         { expensesSheetName, sample }
       );
     }
+  }
+
+  if (!parsed.length) {
+    throw new Error(
+      "No expenses were found in the uploaded file. Please confirm the correct template version and that the expense rows contain amounts."
+    );
   }
 
   return parsed;
